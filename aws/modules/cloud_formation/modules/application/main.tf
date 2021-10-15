@@ -1,0 +1,77 @@
+resource "aws_cloudformation_stack" "application" {
+    name = "elbstack"
+    
+    template_body = <<STACK
+{
+   "Resources":{
+      "myelb":{
+         "Type":"AWS::ElasticLoadBalancing::LoadBalancer",
+         "Properties":{
+            "LoadBalancerName":"myelb",
+            "SecurityGroups":[
+               "${var.elb_securitygroup}"
+            ],
+            "Subnets":[
+               "${var.subnet_1}",
+               "${var.subnet_2}"
+            ],
+            "HealthCheck":{
+               "Target":"HTTP:80/",
+               "HealthyThreshold":"2",
+               "UnhealthyThreshold":"2",
+               "Interval":"30",
+               "Timeout":"3"
+            },
+            "CrossZone":"true",
+            "Listeners":[
+               {
+                  "InstancePort":"80",
+                  "InstanceProtocol":"HTTP",
+                  "LoadBalancerPort":"80",
+                  "Protocol":"HTTP"
+               }
+            ]
+         }
+      },
+      "mylaunchtemplate":{
+         "Type":"AWS::EC2::LaunchTemplate",
+         "Properties":{
+            "LaunchTemplateName":"mylaunchtemplate",
+            "LaunchTemplateData":{
+               "ImageId":"${var.AMI}",
+               "InstanceType":"t2.micro",
+               "SecurityGroupIds":[
+                  "${var.instance_securitygroup}"
+               ],
+               "UserData":"${filebase64("./example.sh")}",
+               "KeyName":"${var.key_name}"
+            }
+         }
+      },
+      "myasg":{
+         "Type":"AWS::AutoScaling::AutoScalingGroup",
+         "Properties":{
+            "AutoScalingGroupName":"myasg",
+            "MinSize":"1",
+            "MaxSize":"2",
+            "VPCZoneIdentifier":[
+               "${var.subnet_1}",
+               "${var.subnet_2}"
+            ],
+            "HealthCheckType":"ELB",
+            "HealthCheckGracePeriod":300,
+            "LoadBalancerNames":[
+               "myelb"
+            ],
+            "LaunchTemplate":{
+               "LaunchTemplateId":{
+                  "Ref":"mylaunchtemplate"
+               },
+               "Version":"1"
+            }
+         }
+      }
+   }
+}
+    STACK
+}
